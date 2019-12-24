@@ -1,70 +1,46 @@
 ---
 layout: post
-title: Integrating razorpay into your webapp
-date:   2019-03-26 15:55:30 +0530
-categories: web payments
-redirect_from: "/node/web/payments/2019/03/26/Integrating-Razorpay-Web.html"
+title: Quickly connecting to a remote Jupyter server with SSH
+date:   2019-12-23 00:00:00 -0800
+categories: productivity shell
 ---
-In order to start charging customers we require a payment processor. [Stripe](https://stripe.com) and [braintreepayments.com](http://braintreepayments.com) are popular options in this space. [Razorpay](https://razorpay.com/) is perhaps the best option as of now for the Indian audience.
-
-We require a payment id in order to process a payment using razorpay. We can use the razorpay client side checkout library for this purpose. It is included as:
-```html
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+# tl;dr
+You can forward the port for Juptyer every time you SSH into a remote server by adding the following line to an SSH config for a specific host:
+```bash
+LocalForward localhost:8888 localhost:8888
 ```
-Now, the `payment_id` can be generated as follows.
 
-```javascript
-const options = {
-	key: "YOUR_KEY_ID",
-	amount: "2000", // 2000 paise 
-	name: "Merchant Name",
-	description: "Purchase Description",
-	image: "/your_logo.png",
-	handler: function (resp) {
-		let payment_id = resp.razorpay_payment_id;
-		// can be passed to server
-		console.log('payment id: ' + payment_id);
-	},
-	prefill: {
-		"name": "John Doe",
-		"email": "test@test.com"
-	},
-	notes: {
-		"address": "Hello World"
-	},
-	theme: {
-		"color": "#F37254"
-	}
-};
-const rzp = new Razorpay(options);
-// Open Gateway
-rzp.open();
+# Motivation
+I recently set up a server at my home with a GPU for training deep learning models. My current workflow is to start up a Python notebook in Jupyter, write some PyTorch model code, and train the model within the notebook. 
+
+I access Jupyter remotely from my laptop by using SSH to forward the port that Jupyter is running on, for instance for port `8888`, I'd run something like:
+
+```bash
+ssh -N -L localhost:8888:localhost:8888 sam@myserver.samgehman.com
 ```
-The `handler` function is called once the payment is done via the checkout form, which includes the payment_id as a parameter and can be used to capture the payment request by the server (by sending an ajax request for example).
 
-As an example, here's how we use node.js on the server along with the `razorpay-node` library to process/capture payment requests.
+Running this command continues to forward the port until an exit key command is pressed. This works well, but I started to realize that I was often also wanting to start a shell on the remote server simultaneously.
 
-```javascript
-const Razorpay = require('Razorpay');
+The main problems I had with this workflow were:
+1. I had to keep two terminal windows open, one for port forwarding and one for controling the remote terminal
+2. It's tedious to type the port and the entire hostname of my server
 
-// Razorpay Instance
-const rzp = new Razorpay({
-	key_id: '< YOUR KEY ID >',
-	key_secret: '< YOUR KEY SECRET >'
-});
 
-// Process Payment
-function processPayment(authorizedAmount, payment_id) {
-	rzp.payments.capture(payment_id, authorizedAmount)	
-		.then( (data) => {
-			if (data.captured) {
-				console.log('Success!');	
-			} else {
-				console.log('Failed');
-			}
-		})
-};
+# Solution
+Luckily, there's a neat SSH config feature available to solve this!
+
+My ideal solution was to forward the port for Jupyter every time I SSH'ed into my server. This can be accomplished by adding a few lines to the SSH config, located at `~/.ssh/config`.
+
+```bash
+Host myserver # a nickname for the host
+
+  # Credentials
+  HostName myserver.samgehman.com
+  user sam
+
+  # Always forward remote port 8888 as local port 8888
+  LocalForward localhost:8888 localhost:8888
 ```
-Please note that the amount is specified by both the client and server for safety. You can checkout the excellent [documentation](https://docs.razorpay.com) for more information.
 
-Let me know if you have any questions below!
+# Thanks
+After I wrote this up, I realized that this approach is covered on [Leo C. Stein's blog](https://duetosymmetry.com/code/ssh-ipython-notebook-magic/). I'm planning on adding some of the features that he mentioned could be implemented, including a script to forward any port that Jupyter is launched on.
